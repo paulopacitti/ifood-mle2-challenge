@@ -6,24 +6,18 @@ def main():
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-    model_id = os.environ["MODEL_ID"]
-    dataset_id = os.environ["DATASET_ID"]
-    input_label = os.environ["INPUT_LABEL"]
-    target_label = os.environ["TARGET_LABEL"]
-    prefix = os.environ.get("PREFIX", "")
+    model_id = "google/flan-t5-small"
+    train_data_path = "data/train_data"
+    test_data_path = "data/test_data"
     batch_size = int(os.environ.get("BATCH_SIZE", 16))
-    eval_metric = os.environ.get("EVAL_METRIC")
-    model_path = os.environ.get("MODEL_PATH")
+    save_model_path = os.environ.get("MODEL_PATH")
     device = os.environ.get("DEVICE")
 
     trainer = Trainer(
         model_id=model_id,
-        dataset_id=dataset_id,
-        input_label=input_label,
-        target_label=target_label,
-        prefix=prefix,
+        train_dataset=train_data_path,
+        test_dataset=test_data_path,
         batch_size=batch_size,
-        eval_metric=eval_metric,
         device=device
     )
     trainer.train()

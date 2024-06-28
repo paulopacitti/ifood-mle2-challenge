@@ -1,110 +1,100 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
-from datasets import load_dataset, concatenate_datasets
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+from datasets import load_dataset
 from evaluate import load
-import nltk
 import numpy as np
+import nltk
+nltk.download("punkt")
 
 
 class Trainer():
-    def __init__(self, model_id, dataset_id, input_label, target_label, prefix="", batch_size=16, eval_metric="", device="cpu"):
-
+    def __init__(self, model_id, train_dataset, test_dataset, batch_size=16, device="cpu"):
+        # load model architecture and tokenizer
         self.model_id = model_id
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_id)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
 
-        self.dataset_id = dataset_id
-        self.raw_dataset = load_dataset(dataset_id)
-        self.input_label = input_label
-        self.target_label = target_label
-        self.max_input_length, self.max_target_length = self._get_dataset_max_length(
-            self.raw_dataset)
+        # tokenize train dataset
+        self.train_data = load_dataset(train_dataset)
+        self.train_data = self.train_data.map(
+            self._convert_to_features, batched=True, remove_columns=self.train_data.column_names)
+        self.train_data.set_format(type="torch", columns=[
+                                   "input_ids", "attention_mask", "labels", "decoder_attention_mask"])
 
-        self.prefix = prefix
+        # tokenize test dataset
+        self.test_data = load_dataset(test_dataset)
+        self.test_data = self.test_data.map(
+            self._convert_to_features, batched=True, remove_columns=self.test_data.column_names)
+        self.test_data.set_format(type="torch", columns=[
+            "input_ids", "attention_mask", "labels", "decoder_attention_mask"])
+
         self.batch_size = batch_size
-        self.eval_matric = eval_metric
         self.device = torch.device(device)
 
         self.trainer = None
+        self.rouge = load("rouge")
 
-    def _get_dataset_max_length(self, dataset):
-        tokenized_inputs = concatenate_datasets([dataset["train"], dataset["test"]]).map(lambda x: self.tokenizer(
-            x[self.input_label], truncation=True), batched=True, remove_columns=[self.target_label])
-        max_input_length = max([len(x)
-                                for x in tokenized_inputs["input_ids"]])
+    def _convert_to_features(self, example_batch):
+        input_encodings = self.tokenizer.batch_encode_plus(
+            example_batch["input"], pad_to_max_length=True)
+        target_encodings = self.tokenizer.batch_encode_plus(
+            example_batch["target"], pad_to_max_length=True)
 
-        tokenized_targets = concatenate_datasets([dataset["train"], dataset["test"]]).map(lambda x: self.tokenizer(
-            x[self.target_label], truncation=True), batched=True, remove_columns=[self.input_label])
-        max_target_length = max([len(x)
-                                for x in tokenized_targets["input_ids"]])
-        return max_input_length, max_target_length
+        encodings = {
+            "input_ids": input_encodings["input_ids"],
+            "attention_mask": input_encodings["attention_mask"],
+            "labels": target_encodings["input_ids"],
+            "decoder_attention_mask": target_encodings["attention_mask"]
+        }
 
-    def _preprocess_function(self, sample):
-        inputs = [self.prefix + doc for doc in sample[self.input_label]]
-        model_inputs = self.tokenizer(
-            inputs, max_length=self.max_input_length, truncation=True)
+        return encodings
 
-        # Setup the tokenizer for targets
-        labels = self.tokenizer(
-            text_target=sample[self.target_label], max_length=self.max_target_length, truncation=True)
-
-        model_inputs["labels"] = labels["input_ids"]
-        return model_inputs
-
-    def _compute_metrics(self, eval_pred):
-        predictions, labels = eval_pred
-        decoded_preds = self.tokenizer.batch_decode(
-            predictions, skip_special_tokens=True)
-        # Replace -100 in the labels as we can't decode them.
+    def _compute_metrics(self, eval_preds):
+        preds, labels = eval_preds
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
+        preds = np.where(preds != -100, preds, self.tokenizer.pad_token_id)
+
+        decoded_preds = self.tokenizer.batch_decode(
+            preds, skip_special_tokens=True)
         decoded_labels = self.tokenizer.batch_decode(
             labels, skip_special_tokens=True)
 
-        # Rouge expects a newline after each sentence
-        decoded_preds = ["\n".join(nltk.sent_tokenize(pred.strip()))
-                         for pred in decoded_preds]
-        decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip()))
-                          for label in decoded_labels]
+        result = self.rouge.compute(
+            predictions=decoded_preds,
+            references=decoded_labels,
+            use_stemmer=True,
+        )
 
-        # Note that other metrics may not have a `use_aggregator` parameter
-        # and thus will return a list, computing a metric for each sentence.
-        result = self.metric.compute(predictions=decoded_preds,
-                                     references=decoded_labels, use_stemmer=True, use_aggregator=True)
-        # Extract a few results
-        result = {key: value * 100 for key, value in result.items()}
-
-        # Add mean generated length
-        prediction_lens = [np.count_nonzero(
-            pred != self.tokenizer.pad_token_id) for pred in predictions]
-        result["gen_len"] = np.mean(prediction_lens)
-
-        return {k: round(v, 4) for k, v in result.items()}
+        return result
 
     def train(self):
-        data_collator = DataCollatorForSeq2Seq(
-            self.tokenizer, model=self.model)
-        args = Seq2SeqTrainingArguments(
-            f"{self.model_id}-finetuned-xsum",
-            evaluation_strategy="epoch",
-            learning_rate=2e-5,
+        training_args = Seq2SeqTrainingArguments(
+            "output",
+            num_train_epochs=1,
+            gradient_accumulation_steps=2,
+            max_steps=50,
+            learning_rate=2e-4,
+            weight_decay=0.01,
+            logging_steps=10,
+            push_to_hub=False,
+            save_steps=200,
             per_device_train_batch_size=self.batch_size,
             per_device_eval_batch_size=self.batch_size,
-            weight_decay=0.01,
             save_total_limit=3,
-            num_train_epochs=1,
             predict_with_generate=True,
+            load_best_model_at_end=True,
+            evaluation_strategy="no",
+            save_strategy="no",
+            generation_max_length=64
         )
 
         self.trainer = Seq2SeqTrainer(
-            self.model,
-            args,
-            train_dataset=self.tokenized_dataset["train"].select(range(100)),
-            eval_dataset=self.tokenized_dataset["validation"].select(
-                range(100)),
-            data_collator=data_collator,
-            tokenizer=self.tokenizer,
-            compute_metrics=self._compute_metrics
+            model=self.model,
+            args=training_args,
+            compute_metrics=self._compute_metrics,
+            train_dataset=self.train_data,
+            eval_dataset=self.test_data,
         )
         self.trainer.train()
 
