@@ -1,27 +1,14 @@
-FROM ollama/ollama:latest
+FROM python:3.11.9-bullseye
 WORKDIR /app
 
-ENV model "example.gguf"
-ENV system_prompt "translate to SQL: "
-ENV template "
-{{ if .System }}{{ .System }}{{ end }}
-{{ if .Prompt }}{{ .Prompt }}{{ end }}
-"
-COPY model/$model /app/model.gguf
+VOLUME models/
+ENV MODEL_PATH="/models"
+ENV DEVICE="cpu"
 
-# create Modelfile
-RUN RUN <<EOF
-echo "
-FROM $model
+COPY requirements.txt requirements.txt
+COPY src src/
+RUN pip install -r requirements.txt
 
-TEMPLATE """$template""""
+CMD ["fastapi", "run", "src/main.py"]
 
-SYSTEM """$system_prompt"""
-"""" > Modelfile
-EOF
-RUN ollama create main -f Modelfile
-
-# Serve the model
-CMD ollama serve
-
-EXPOSE 11434
+EXPOSE 8000
