@@ -6,8 +6,9 @@ __pycache__/
 output/
 results/
 tmp_trainer/
-llama.cpp/
 api/models
+train/shared/data/train_data/cache*
+train/shared/data/test_data/cache*
 
 venv/
 .python-version
