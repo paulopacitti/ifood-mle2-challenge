@@ -157,7 +157,7 @@ To run the training pipeline, you need to have Docker installed in your machine.
 # first, build the image
 docker build ./train -t  mljam-train:latest
 # then, run the container
-docker run -v $(pwd)/shared:/app/shared -e ITERATIONS=10 mljam-train:latest
+docker run -v ./train/shared:/app/shared -e ITERATIONS=10 mljam-train:latest
 ```
 
 ### Inference
