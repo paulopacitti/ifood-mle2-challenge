@@ -17,5 +17,5 @@ test_data = test_data.map(
     format_dataset, remove_columns=test_data.column_names)
 
 print("> Saving dataset...")
-train_data.save_to_disk("data/train_data")
-test_data.save_to_disk("data/test_data")
+train_data.save_to_disk("shared/data/train_data")
+test_data.save_to_disk("shared/data/test_data")
