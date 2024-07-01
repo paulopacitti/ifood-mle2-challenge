@@ -1,7 +1,7 @@
 from typing import List
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 from pydantic import BaseModel
-from config import MODEL_PATH, DEVICE
+from config import MODEL_PATH, DEVICE, SYSTEM_PROMPT
 
 
 class InputPrompt(BaseModel):
@@ -21,4 +21,4 @@ class Model():
                                  tokenizer=self.tokenizer, max_new_tokens=128)
 
     def generate(self, prompt: InputPrompt) -> List[GeneratedText]:
-        return self.pipeline(prompt.text)[0]["generated_text"]
+        return self.pipeline(SYSTEM_PROMPT + prompt.text)[0]["generated_text"]
