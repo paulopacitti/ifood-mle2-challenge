@@ -5,7 +5,7 @@ from config import MODEL_PATH, DEVICE, SYSTEM_PROMPT
 
 
 class InputPrompt(BaseModel):
-    text: str
+    message: str
 
 
 class GeneratedText(BaseModel):
@@ -21,4 +21,4 @@ class Model():
                                  tokenizer=self.tokenizer, max_new_tokens=128)
 
     def generate(self, prompt: InputPrompt) -> List[GeneratedText]:
-        return self.pipeline(SYSTEM_PROMPT + prompt.text)[0]["generated_text"]
+        return self.pipeline(SYSTEM_PROMPT + prompt.message)[0]["generated_text"]

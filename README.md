@@ -6,7 +6,7 @@ Challenge description can be found on `challenge.md`. The proposed "framework" i
 - `train/` -> Seq2Seq fine-tuning pipeline
 - `api/` -> Inference API to serve Seq2Seq models for generation. 
 
-The example used to demonstrate the solution is a a fine tuning of the [flan-t5-small](), an encoder-decoder transformer model, on the Saleforce's [wikisql]() dataset. The model is then used to generate SQL queries from natural language questions.
+The example used to demonstrate the solution is a a fine tuning of the [flan-t5-small](), an encoder-decoder transformer model, on the Saleforce's [wikisql](https://github.com/salesforce/WikiSQL) dataset. The model is then used to generate SQL queries from natural language questions. **Dataset preprocessed for training present in the repo. Current saved model in the repo has been trained in 2000 iterations.**
 
 ### Table of Contents
 
@@ -74,7 +74,7 @@ A volume is needed to access the training data and also to save the model once t
 # first, build the image
 docker build /train -t  mljam-train:latest
 # then, run the container
-docker run -v $(pwd)/shared:/app/shared -e MODEL_ID="google/flan-t5-small" -e TRAIN_DATA_PATH="/app/shared/data/train_data" -e TEST_DATA_PATH="/app/shared/data/test_data" -e BATCH_SIZE=1 -e SAVE_MODEL_PATH="/app/shared/models/saved_model" -e DEVICE="cpu" -e ITERATIONS=10 mljam-train:latest
+docker run -v ./train/shared:/app/shared -e MODEL_ID="google/flan-t5-small" -e TRAIN_DATA_PATH="/app/shared/data/train_data" -e TEST_DATA_PATH="/app/shared/data/test_data" -e BATCH_SIZE=1 -e SAVE_MODEL_PATH="/app/shared/models/saved_model" -e DEVICE="cpu" -e ITERATIONS=10 mljam-train:latest
 ```
 
 The model is then saved to the specified path, both the model itself and the tokenizer. This is important so it can be later be loaded by the inference API.
@@ -94,6 +94,7 @@ The inference API is a REST API that serves predictions for a given fine-tuned G
 You can run the API by running the container with the following arguments:
 - `MODEL_PATH`: Specifies the path where the models are stored.
 - `DEVICE`: Specifies the device to be used for model execution (defined by [torch.device](https://pytorch.org/docs/stable/tensor_attributes.html#torch.device)).
+- `SYSTEM_PROMPT`: Specifies the system prompt to be used for the model. Default value is `translate to SQL: `.
 
 A volume is needed to access the trained model. Then, run the docker container with the following command:
 
@@ -101,18 +102,18 @@ A volume is needed to access the trained model. Then, run the docker container w
 # first, build the image
 docker build /api -t  mljam-api:latest
 # then, run the container
-docker run -v $(pwd)/shared:/app/shared -e MODEL_PATH="/app/shared/models/saved_model" -e DEVICE="cpu" -p 8000:8000 mljam-api:latest
+docker run -v ./api/models:/app/models -e MODEL_PATH="/app/shared/models/saved_model" -e DEVICE="cpu" -e SYSTEM_PROMPT="translate to SQL: " -p 8000:8000 mljam-api:latest
 ```
 
 The model docs can be accessed at `http://localhost:8000/docs`. To generate an example SQL query from a natural language question, you can use build a request in the form:
 
 ```sh
 curl -X 'POST' \
-  'http://127.0.0.1:8000/generate' \
+  'http://0.0.0.0:8000/generate' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
-  "text": "translate to SQL: Tell me what the notes are for South Australia"
+  "message": "Tell me what the notes are for South Australia "
 }'
 ```
 ### Future improvements
@@ -153,7 +154,7 @@ To run the training pipeline, you need to have Docker installed in your machine.
 
 ```bash
 # first, build the image
-docker build /train -t  mljam-train:latest
+docker build ./train -t  mljam-train:latest
 # then, run the container
 docker run -v $(pwd)/shared:/app/shared -e ITERATIONS=10 mljam-train:latest
 ```
@@ -162,10 +163,12 @@ docker run -v $(pwd)/shared:/app/shared -e ITERATIONS=10 mljam-train:latest
 To run the inference API, you need to have Docker installed in your machine. The default image parameters are selected to run the API in a CPU machine. The model is already fine-tuned and saved in the `shared/models/saved_model` directory. You can run the API by running the following commands:
 
 ```bash
+# copy the trained model to the api directory
+mkdir ./api/models/ && cp -r ./train/shared/models/ ./api/models/
 # first, build the image
-docker build /api -t  mljam-api:latest
+docker build ./api -t  mljam-api:latest
 # then, run the container
-docker run -v $(pwd)/shared:/app/shared -p 8000:8000 mljam-api:latest
+docker run -v ./api/models:/app/models -p 8000:8000 mljam-api:latest
 ```
 
 The API docs is then available at `http://localhost:8000/docs`. You can generate an example SQL query using the Swagger interface.
