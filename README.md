@@ -6,7 +6,7 @@ Challenge description can be found on `challenge.md`. The proposed "framework" i
 - `train/` -> Seq2Seq fine-tuning pipeline
 - `api/` -> Inference API to serve Seq2Seq models for generation. 
 
-The example used to demonstrate the solution is a a fine tuning of the [flan-t5-small](), an encoder-decoder transformer model, on the Saleforce's [wikisql](https://github.com/salesforce/WikiSQL) dataset. The model is then used to generate SQL queries from natural language questions. **Dataset preprocessed for training present in the repo. Current saved model in the repo has been trained in 2000 iterations.**
+The example used to demonstrate the solution is a a fine tuning of the [flan-t5-small](https://huggingface.co/google/flan-t5-base), an encoder-decoder transformer model, on the Saleforce's [wikisql](https://github.com/salesforce/WikiSQL) dataset. The model is then used to generate SQL queries from natural language questions. **Dataset preprocessed for training present in the repo. Current saved model in the repo has been trained in 2000 iterations. (Available through Git LFS)**
 
 ### Table of Contents
 
@@ -30,6 +30,7 @@ The example used to demonstrate the solution is a a fine tuning of the [flan-t5-
   - [Run the demo](#run-the-demo)
     - [Training](#training-2)
     - [Inference](#inference-1)
+      - [Prompt examples:](#prompt-examples)
   - [Challenge Feedback](#challenge-feedback)
 
 ## History
@@ -87,7 +88,7 @@ I lost a lot of time making model evaluation work, but I was not able to. The is
 
 ## Inference API
 
-The inference API is a REST API that serves predictions for a given fine-tuned Generative AI model. Built with [fastapi]() and [hugging-face inference's pipeline](), the endpoints are documented with Swagger. The API loads the model from the specified path and then serves predictions for the given input.
+The inference API is a REST API that serves predictions for a given fine-tuned Generative AI model. Built with [fastapi](https://fastapi.tiangolo.com) and [hugging-face inference's pipeline](https://huggingface.co/docs/transformers/en/main_classes/pipelines), the endpoints are documented with Swagger. The API loads the model from the specified path and then serves predictions for the given input.
 
 ### Usage
 
@@ -172,6 +173,15 @@ docker run -v ./api/models:/app/models -p 8000:8000 mljam-api:latest
 ```
 
 The API docs is then available at `http://localhost:8000/docs`. You can generate an example SQL query using the Swagger interface.
+
+#### Prompt examples:
+
+| Prompt | SQL Query |
+| --- | --- |
+| "Tell me what the notes are for South Australia" | `SELECT notes FROM table WHERE state = 'South Australia'` |
+| "Name the background colour for the Australian Capital Territory" | `SELECT background_colour FROM table WHERE state = 'Australian Capital Territory'` |
+| "What is the number of season premieres were 10.17 people watched?" | `'SELECT COUNT Season premiere FROM table WHERE Viewers (millions) = 10.17` |
+| "How many years did BBC One rank 20th?" | `SELECT COUNT Year FROM table WHERE BBC One Rank = 20th` |
 
 ## Challenge Feedback
 - Selecting the models and datasets and making the "framework" as generic as possibl were by far the most time consuming part. Since candidates expect iFood's bar to be very high, they might lose a lot of time trying to make a generic pipeline and creating the best demonstration possible. It's fun, but not suitable for a tight deadline for candidates for the role. I think that the challenge could be more focused on the ML Engineering part, like optimizing training and serving part, and less on the model selection and dataset selection. This would make the challenge more focused on machine learning **engineering** itself and it would extract the full potential of the candidate for the current role. Maybe the challenge could already establish the model and suggested dataset to be used, and the candidate would have to optimize the training and serving part for any dataset. This would make the challenge more focused on the ML Engineering part and would extract the full potential of the candidate for the current role.
